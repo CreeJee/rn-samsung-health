@@ -53,9 +53,7 @@ public class SamsungHealthModule extends ReactContextBaseJavaModule implements L
     @Override
     public void initialize() {
         super.initialize();
-
         getReactApplicationContext().addLifecycleEventListener(this);
-        initSamsungHealth();
     }
 
     @Override
@@ -91,15 +89,6 @@ public class SamsungHealthModule extends ReactContextBaseJavaModule implements L
                 params);
     }
 
-    public void initSamsungHealth() {
-        Log.d(REACT_MODULE, "initialize Samsung Health...");
-        try {
-            mStore.connectService();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     public HealthDataStore getStore() {
         return mStore;
     }
@@ -116,7 +105,12 @@ public class SamsungHealthModule extends ReactContextBaseJavaModule implements L
         }
 
         mStore = new HealthDataStore(getReactApplicationContext(), listener);
-        mStore.connectService();
+        Log.d(REACT_MODULE, "initialize Samsung Health...");
+        try {
+            mStore.connectService();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @ReactMethod

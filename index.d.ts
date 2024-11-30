@@ -1,4 +1,4 @@
-declare module 'rn-samsung-health' {
+declare module '@hr-osc-wearable/rn-samsung-health' {
   export const authorize: () => Promise<boolean>;
 
   interface IOptionData {
