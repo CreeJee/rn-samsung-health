@@ -7,25 +7,102 @@ def computeVersionName() {
     return json.version
 }
 
+def safeAppExtGet(prop, fallback) {
+    def appProject = rootProject.allprojects.find { it.plugins.hasPlugin('com.android.application') }
+    appProject?.ext?.has(prop) ? appProject.ext.get(prop) : fallback
+}
+
+def resolveReactNativeDirectory() {
+    def reactNativeLocation = safeAppExtGet("REACT_NATIVE_NODE_MODULES_DIR", null)
+    if (reactNativeLocation != null) {
+        return file(reactNativeLocation)
+    }
+
+    def reactNativeFromProjectNodeModules = file("${rootProject.projectDir}/../node_modules/react-native")
+    if (reactNativeFromProjectNodeModules.exists()) {
+        return reactNativeFromProjectNodeModules
+    }
+    // monorepo workaround
+    // react-native can be hoisted or in project's own node_modules
+    def reactNativeFromMonorepoNodeModules = file("${rootProject.projectDir}/../../node_modules/react-native")
+    if (reactNativeFromMonorepoNodeModules.exists()) {
+        return reactNativeFromMonorepoNodeModules
+    }
+
+    def reactNativeFromNodeModulesBuiltin = file("${projectDir}/../../../node_modules/react-native")
+    if (reactNativeFromNodeModulesBuiltin.exists()) {
+        return reactNativeFromNodeModulesBuiltin
+    }
+    throw new GradleException("[ReactNativeSamsungModule] Invalid React Native root directory")
+}
+def isNewArchitectureEnabled() {
+    // To opt-in for the New Architecture, you can either:
+    // - Set `newArchEnabled` to true inside the `gradle.properties` file
+    // - Invoke gradle with `-newArchEnabled=true`
+    // - Set an environment variable `ORG_GRADLE_PROJECT_newArchEnabled=true`
+    return project.hasProperty("newArchEnabled") && project.newArchEnabled == "true"
+}
+
+def reactNativeRootDir = resolveReactNativeDirectory()
+
+
+def reactProperties = new Properties()
+file("$reactNativeRootDir/ReactAndroid/gradle.properties").withInputStream { reactProperties.load(it) }
+
+def REACT_NATIVE_VERSION = reactProperties.getProperty("VERSION_NAME")
+def REACT_NATIVE_MINOR_VERSION = REACT_NATIVE_VERSION.startsWith("0.0.0-") ? 1000 : REACT_NATIVE_VERSION.split("\\.")[1].toInteger()
+def IS_NEW_ARCHITECTURE_ENABLED = isNewArchitectureEnabled()
+
+def JS_RUNTIME = {
+    // Override JS runtime with environment variable
+    if (System.getenv("JS_RUNTIME")) {
+        return System.getenv("JS_RUNTIME")
+    }
+
+    // Enable V8 runtime if react-native-v8 is installed
+    def v8Project = rootProject.getSubprojects().find { project -> project.name == "react-native-v8" }
+    if (v8Project != null) {
+        return "v8"
+    }
+
+    // Check if Hermes is enabled in app setup
+    def appProject = rootProject.allprojects.find { it.plugins.hasPlugin('com.android.application') }
+    if ((REACT_NATIVE_MINOR_VERSION >= 71 && appProject?.hermesEnabled?.toBoolean()) || appProject?.ext?.react?.enableHermes?.toBoolean()) {
+        return "hermes"
+    }
+
+    // Use JavaScriptCore (JSC) by default
+    return "jsc"
+}.call()
+
+
 buildscript {
     repositories {
-        jcenter()
+        google()
+        mavenCentral()
+        mavenLocal()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:1.5.0'
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        classpath 'org.codehaus.groovy:groovy:3.0.23'
     }
+}
+if (isNewArchitectureEnabled()) {
+    apply plugin: "com.facebook.react"
 }
 
 apply plugin: 'com.android.library'
-
 android {
-    compileSdkVersion 28
-    buildToolsVersion "23.0.1"
+    namespace "com.reactnative.samsunghealth"
+    compileSdkVersion 34
+    buildToolsVersion "34.0.0"
 
     defaultConfig {
         minSdkVersion 16
-        targetSdkVersion 28
+        targetSdkVersion 34
         versionCode 1
         // get version name from package.json version
         versionName computeVersionName()
@@ -35,11 +112,32 @@ android {
     }
 }
 
-repositories {
-    mavenCentral()
+allprojects {
+    repositories {
+        maven {
+            // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+            url "$reactNativeRootDir/android"
+        }
+        maven {
+            // Android JSC is installed from npm
+            url "$reactNativeRootDir/../jsc-android/dist"
+        }
+        mavenCentral()
+        mavenLocal()
+        google()
+        maven { url 'https://www.jitpack.io' }
+    }
 }
-
 dependencies {
-    compile 'com.facebook.react:react-native:+'
-    compile fileTree(dir: "libs", include: ["*.jar"])
+    implementation "org.codehaus.groovy:groovy:3.0.23"
+    if (REACT_NATIVE_MINOR_VERSION >= 71) {
+        implementation "com.facebook.react:react-android:$REACT_NATIVE_VERSION" // version substituted by RNGP
+        if (JS_RUNTIME == "hermes") {
+            implementation "com.facebook.react:hermes-android:$REACT_NATIVE_VERSION" // version substituted by RNGP
+        }
+    } else {
+        // noinspection GradleDynamicVersion
+        implementation "com.facebook.react:react-native" // From node_modules
+    }
+    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'], exclude: [])
 }

@@ -1,7 +1,5 @@
 package com.reactnative.samsunghealth;
 
-import android.support.annotation.Nullable;
-
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.JavaScriptModule;
 import com.facebook.react.bridge.NativeModule;

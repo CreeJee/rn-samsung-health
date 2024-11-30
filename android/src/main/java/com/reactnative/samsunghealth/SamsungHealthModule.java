@@ -1,7 +1,8 @@
 package com.reactnative.samsunghealth;
 
 import android.util.Log;
-import android.support.annotation.Nullable;
+
+import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.Promise;
@@ -14,12 +15,10 @@ import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.bridge.LifecycleEventListener;
-
 import com.samsung.android.sdk.healthdata.HealthConstants;
 import com.samsung.android.sdk.healthdata.HealthDataResolver;
 import com.samsung.android.sdk.healthdata.HealthDataResolver.Filter;
 import com.samsung.android.sdk.healthdata.HealthDataResolver.ReadRequest;
-import com.samsung.android.sdk.healthdata.HealthDataService;
 import com.samsung.android.sdk.healthdata.HealthDataStore;
 
 import java.util.Calendar;
@@ -38,6 +37,9 @@ public class SamsungHealthModule extends ReactContextBaseJavaModule implements L
     public static final String DAY_TIME = "day_time";
 
     private HealthDataStore mStore;
+
+    // 연결 리스너 설정
+
 
     public SamsungHealthModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -91,9 +93,8 @@ public class SamsungHealthModule extends ReactContextBaseJavaModule implements L
 
     public void initSamsungHealth() {
         Log.d(REACT_MODULE, "initialize Samsung Health...");
-        HealthDataService healthDataService = new HealthDataService();
         try {
-            healthDataService.initialize(getReactApplicationContext());
+            mStore.connectService();
         } catch (Exception e) {
             e.printStackTrace();
         }
